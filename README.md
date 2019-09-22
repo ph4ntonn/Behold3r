@@ -6,6 +6,10 @@ Redis
 
 Python3
 
+# 文件描述
+Behold3r.py为主程序
+
+config.py为配置文件，redis相关配置、线程数配置及未来功能的配置都存放在此文件
 # 参数设置
 -u --url:设置要查找的域名，形如:python -u http//:www.example.com
 
