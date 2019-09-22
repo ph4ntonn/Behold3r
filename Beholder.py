@@ -70,8 +70,8 @@ def conn_redis():
 
 
 def test_conn(conn):
-    conn.set("Beholder", "Beholder")
-    conn.delete("Beholder")
+    conn.set("Behold3r", "Behold3r")
+    conn.delete("Behold3r")
 
 
 def del_dup(data):
