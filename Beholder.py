@@ -1,0 +1,376 @@
+# Just4fun,don't be so serious XD
+# coding: utf-8
+from tld import get_fld
+from redis import Redis
+from termcolor import colored
+from config import *
+from queue import Queue
+from Email import *
+import argparse
+import time
+import requests
+import sys
+import re
+import threading
+import os
+
+
+Author = "Aiden Qi(@ph4ntom)"
+Version = '1.1'
+Email = "phantom11235@gmail.com"
+
+
+def args():
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-u', '--url',
+                       dest="url",
+                       help="Domain that need to be diged",
+                       required=False)
+    group.add_argument('-s', '--search',
+                       dest="search",
+                       help="Search the data of the given url",
+                       default="",
+                       required=False)
+    parser.add_argument('-c', '--confirm',
+                        dest="confirm",
+                        help="Test if domain is still alive",
+                        default=False,
+                        action="store_true",
+                        required=False)
+    parser.add_argument('-r', '--redis',
+                        dest='redis',
+                        help="Use the redis to reserve the result",
+                        action="store_true",
+                        default=False,
+                        required=False)
+    parser.add_argument('-t', '--timeout',
+                        dest='timeout',
+                        help="Second(s) when testing if domain alive",
+                        default=5,
+                        required=False)
+    parser.add_argument('-e', '--email',
+                        dest='email',
+                        help='The email to receive the monitor data',
+                        default='',
+                        required=False)
+    parser.add_argument('-d', '--domains',
+                        dest='monitor_domain',
+                        help='Domains to monitor',
+                        default='',
+                        required=False)
+    parser.add_argument('-x',
+                        dest='execute',
+                        help='Don\'t use this option!!!!',
+                        action="store_true",
+                        required=False
+                        )
+    return parser.parse_args()
+
+
+def banner():
+    print(colored(
+        '''
+    ______      _           _     _  _____      
+    | ___ \    | |         | |   | ||____ |     
+    | |_/ / ___| |__   ___ | | __| |    / /_ __ 
+    | ___ \/ _ \ '_ \ / _ \| |/ _` |    \ \ '__|
+    | |_/ /  __/ | | | (_) | | (_| |.___/ / |   
+    \____/ \___|_| |_|\___/|_|\__,_|\____/|_| 
+                                         
+        ''', "yellow"))
+    print(colored("            Author: {}".format(Author), "red"))
+    print(colored("            Version: {}", "red").format(Version))
+    print(colored("            Email: {}", "red").format(Email))
+
+
+def conn_redis():
+    return Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DATABASE)
+
+
+def test_conn(conn):
+    conn.set("Beholder", "Beholder")
+    conn.delete("Beholder")
+
+
+def del_dup(data):
+    data = set(data)
+    return data
+
+
+def saving(data, conn):
+    try:
+        try:
+            print(colored("[*]Checking if data has existed.....", "green"))
+            conn.delete(url)
+            print(colored("[*]Data has existed,clearing.....", "red"))
+            if confirm is False:
+                print(colored("[*]All data have shown as below.....", "green"))
+                for everyone in data:
+                    print(everyone)
+            for everyone in data:
+                conn.lpush(url, everyone)
+            print(colored("[*]Saving data successfully", "green"))
+        except:
+            print(colored("[*]Data doesn't exist,saving.....", "green"))
+            if confirm is False:
+                print(colored("[*]All data have shown as below.....", "green"))
+                for everyone in data:
+                    print(everyone)
+            for everyone in data:
+                conn.lpush(url, everyone)
+            print(colored("[*]Saving data successfully", "green"))
+    except Exception as e:
+        print(e)
+
+
+def check_given_url(url):
+    try:
+        TLD = get_fld(url)
+        return TLD
+    except Exception as e:
+        print(e)
+        print(colored("The format of given url is WRONG!!! It must like *.example.com(.cn,.net,etc...)", "red"))
+        sys.exit(1)
+
+
+def prepare_test(domains):
+    global ready, domains_alive
+    threads = []
+    print(colored("---------Testing----------", "green"))
+    for domain in domains:
+        ready.put(domain)
+    for i in range(THREADS):
+        t = threading.Thread(target=test_alive)
+        threads.append(t)
+    for i in threads:
+        i.start()
+    for i in threads:
+        i.join()
+    return domains_alive
+
+
+def test_alive():
+    global ready, domains_alive
+    while True:
+        try:
+            if ready.empty() is False:
+                domain = ready.get()
+                response = requests.get("http://{}".format(domain), timeout=timeout)
+                if response.status_code == 200 or response.status_code == 443 or response.status_code == 302:
+                    domains_alive.append(domain)
+            else:
+                return 0
+        except Exception as e:
+            pass
+
+
+def check_subdomain_bycrt(url):
+    print(colored("Searching the subdomain through crt....... ", "green"))
+    search_string = "%25."+str(url)
+    result = []
+    try:
+        response = requests.get("http://crt.sh/?Identity={}&output=json".format(search_string))
+        if response.status_code == 200:
+            for domain in response.json():
+                result.append(domain['name_value'])
+            return result
+        else:
+            print(colored("----------crt.sh seems down,Skipping....----------", "red"))
+            return result
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+
+
+def check_subdomain_byip138(url):
+    print(colored("Searching the subdomain through ip138....... ", "green"))
+    pattern = r'_blank">([A-Za-z0-9.]*)</a></p>'
+    search_result = []
+    try:
+        response = requests.get("https://site.ip138.com/{}/domain.htm".format(url))
+        if response.status_code == 200:
+            search_result = re.findall(pattern, response.text)
+            return search_result
+        else:
+            print(colored("----------ip138 seems down,Skipping....----------", "red"))
+            return search_result
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+
+
+def search_sub(url):
+    conn = conn_redis()
+    try:
+        length = conn.llen(url)
+        results = conn.lrange(url, 0, int(length))
+        print(colored("----------Found {} records!----------".format(length), "green"))
+        print(colored("----------The subdomains of given url are shown as below----------", "green"))
+        for i in results:
+            print(i.decode('utf-8'))
+        print(colored("----------That's all!!!!!!----------", "green"))
+        return list(results)
+    except:
+        print(colored("Cannot find any data!", "red"))
+
+
+def email_prepare_163(data_ready):
+    changed_data = {}
+    for domain in data_ready:
+        new_data = search_sub(domain)
+        new_data = list(map(lambda x: str(x, "utf-8"), new_data))
+        old_data = list(map(lambda x: str(x, "utf-8"), data_ready[domain]))
+        changed_data[domain] = check_diff(old_data, new_data)
+    send_163_email(changed_data)
+
+
+def email_prepare_qq(data_ready):
+    changed_data = {}
+    for domain in data_ready:
+        new_data = search_sub(domain)
+        new_data = list(map(lambda x: str(x, "utf-8"), new_data))
+        old_data = list(map(lambda x: str(x, "utf-8"), data_ready[domain]))
+        changed_data[domain] = check_diff(old_data, new_data)
+    send_qq_email(changed_data)
+
+
+def check_diff(old_data, new_data):
+    changed_data = [i for i in new_data if i not in old_data]
+    return changed_data
+
+
+if __name__ == "__main__":
+    redis = args().redis
+    url = args().url
+    search = args().search
+    conn = conn_redis()
+    ready = Queue()
+    domains_alive = []
+    confirm = args().confirm
+    timeout = int(args().timeout)
+    email = args().email
+    monitor_domain = args().monitor_domain
+    execute = args().execute
+    path = os.getcwd()
+
+    banner()
+
+    if redis and search:
+        print("Beholder.py: error: argument -s/--search: not allowed with argument -r/--redis")
+        sys.exit(1)
+    else:
+        pass
+
+    if search:
+        search_sub(search)
+    else:
+        pass
+
+    if (email != '' and monitor_domain == '') or (email == '' and monitor_domain != ''):
+        print(colored("Warnning!:Option -e should be used with option -d", "red"))
+        sys.exit(1)
+    elif(email != '' and monitor_domain != '') and (redis or url or confirm or search != ""):
+        print(colored("Warning!:Option -e/-d/-r can only be used without additional options"))
+        sys.exit(1)
+    else:
+        if email == "163":
+            try:
+                with open("mon_163.txt", "a") as mon:
+                    mon.write(monitor_domain+"\n")
+                print(colored("Successfully added!!!!", "green"))
+                sys.exit(0)
+            except:
+                print(colored("Warnning!:Fail to add domain!", "red"))
+                sys.exit(1)
+        elif email == "qq":
+            try:
+                with open("mon_qq.txt", "a") as mon:
+                    mon.write(monitor_domain+"\n")
+                print(colored("Successfully added!!!!", "green"))
+                sys.exit(0)
+            except:
+                print(colored("Warnning!:Fail to add domain!", "red"))
+                sys.exit(1)
+
+    if execute:
+        size_163 = os.path.getsize("mon_163.txt")
+        size_qq = os.path.getsize("mon_qq.txt")
+        temp_163 = {}
+        temp_qq = {}
+        with open("mon_163.txt", "r") as mon:
+            if size_163 == 0:
+                pass
+            else:
+                for i in mon.readlines():
+                    i = i.strip("\n").strip()
+                    if i:
+                        old_163 = search_sub(i)
+                        temp_163[i] = old_163
+                        os.system("cd {} && python Beholder.py -u {} -c -r".format(path, i.strip()))
+                email_prepare_163(temp_163)
+        with open("mon_qq.txt", "r") as mon:
+            if size_qq == 0:
+                pass
+            else:
+                for i in mon.readlines():
+                    i = i.strip("\n").strip()
+                    if i:
+                        old_qq = search_sub(i)
+                        temp_qq[i] = old_qq
+                        os.system("cd {} && python Beholder.py -u {} -c -r".format(path, i))
+                email_prepare_qq(temp_qq)
+        sys.exit(0)
+
+    try:
+        if redis:
+            try:
+                test_conn(conn)
+            except:
+                print(colored("Redis server seems not running! PLZ check the Redis status!", "red"))
+                sys.exit(1)
+            try:
+                TLD = check_given_url(url)
+                subdomain = check_subdomain_bycrt(TLD)
+                subdomain += check_subdomain_byip138(TLD)
+                subdomain = del_dup(subdomain)
+                if confirm:
+                    alive = prepare_test(subdomain)
+                    alive_amount = len(alive)
+                    print(colored("[*]These domains below are alive!!!!!!!!", "red"))
+                    print(colored("--------There are {} domains alive now---------".format(alive_amount), "red"))
+                    for domain in alive:
+                        print(domain)
+                    saving(alive, conn)
+                else:
+                    saving(subdomain, conn)
+            except Exception as e:
+                print(e)
+                sys.exit(1)
+        else:
+            if search == "" and redis is False:
+                try:
+                    TLD = check_given_url(url)
+                    subdomain = check_subdomain_bycrt(TLD)
+                    subdomain += check_subdomain_byip138(TLD)
+                    subdomain = del_dup(subdomain)
+                    amount = len(subdomain)
+                    print(colored("---------Here are the {} subdomains----------".format(amount), "green"))
+                    for i in subdomain:
+                        print(i)
+                    print(colored("---------DONE!!!!!!!!!!!!!!!!----------", "green"))
+                    if confirm:
+                        alive = prepare_test(subdomain)
+                        alive_amount = len(alive)
+                        print(colored("[*]These domains below are alive!!!!!!!!", "red"))
+                        print(colored("--------There are {} domains alive now---------".format(alive_amount), "red"))
+                        for domain in alive:
+                            print(domain)
+                except Exception as e:
+                    print(e)
+                    sys.exit(1)
+    except Exception as e:
+        print(e)
+
+
+
