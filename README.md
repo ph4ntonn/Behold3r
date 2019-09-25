@@ -43,7 +43,8 @@ Email.py 为邮件发送代码
 若使用了域名监控功能，请手动使用crontab -e 命令将其变为定时任务(不知道这是啥的请自行百度。。。)：
 
 添加的内容类似如下：
-* * * *  cd ~/code/Beholder && python Beholder.py -x
+
+\* * * * cd ~/code/Beholder && python Beholder.py -x
 
 (前面四个 * 号表示每过一分钟执行，不知道使用方法者请自行百度。之后的cd语句只需改成你代码所在的目录即可）
 
