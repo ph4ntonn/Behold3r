@@ -6,6 +6,23 @@ Redis
 
 Python3
 
+# 使用截图
+对7k7k网站进行子域名收集，并检活后存放结果至redis中
+
+![1](https://github.com/phantom11235/Behold3r/blob/master/example/1.png)
+
+对7k7k网站进行子域名收集，不进行检活也不放入redis，仅展示
+
+![2](https://github.com/phantom11235/Behold3r/blob/master/example/2.png)
+
+将7k7k网站加入监控列表，并指定使用163邮箱接受监控邮件
+
+![3](https://github.com/phantom11235/Behold3r/blob/master/example/3.png)
+
+收到邮件提醒
+
+![4](https://github.com/phantom11235/Behold3r/blob/master/example/4.png)
+
 # 文件描述
 Behold3r.py为主程序
 
@@ -44,9 +61,9 @@ Email.py 为邮件发送代码
 
 添加的内容类似如下：
 
-\* * * * cd ~/code/Beholder && python Beholder.py -x
+\* * * * * cd ~/code/Beholder && python Beholder.py -x
 
-(前面四个 * 号表示每过一分钟执行，不知道使用方法者请自行百度。之后的cd语句只需改成你代码所在的目录即可）
+(前面五个 * 号表示每过一分钟执行，不知道使用方法者请自行百度。之后的cd语句只需改成你代码所在的目录即可）
 
 如上设置，即可在邮箱中每分钟收到一次子域名变化信息
 
