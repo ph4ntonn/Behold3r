@@ -59,6 +59,22 @@ def args():
                         help='Domains to monitor',
                         default='',
                         required=False)
+    parser.add_argument('-f', '--flush',
+                        dest='flush',
+                        help='Clear all monitored domains',
+                        default='',
+                        required=False)
+    parser.add_argument('-p', '--pop',
+                        dest='pop',
+                        help='Remove specific monitoring domain',
+                        default='',
+                        required=False)
+    parser.add_argument('-l', '--listing',
+                        dest='listing',
+                        help='Show all domain currently being monitored',
+                        default=False,
+                        action="store_true",
+                        required=False)
     parser.add_argument('-x',
                         dest='execute',
                         help='Don\'t use this option!!!!',
@@ -240,6 +256,64 @@ def check_diff(old_data, new_data):
     return changed_data
 
 
+def flush_all(target):
+    if target == '163':
+        temp = open("mon_163.txt", "w")
+        temp.close()
+        print(colored("Clear successfully!!!", "green"))
+    elif target == 'qq':
+        temp = open("mon_qq.txt", "w")
+        temp.close()
+        print(colored("Clear successfully!!!", "green"))
+    else:
+        print(colored("Warnning!!:Unsupported method!!!!", "red"))
+        sys.exit(1)
+    sys.exit(0)
+
+
+def list_all():
+    with open("mon_163.txt", "r") as mon:
+        data = mon.readlines()
+    print(colored("----------Here are domains being monitored under *@163.com---------", "green"))
+    for domain in data:
+        print(domain.strip("\n"))
+    with open("mon_qq.txt", "r") as mon:
+        data = mon.readlines()
+    print(colored("----------Here are domains being monitored under *@qq.com---------", "green"))
+    for domain in data:
+        print(domain.strip("\n"))
+    sys.exit(0)
+
+
+def pop_domain(target, email):
+    if email == '163':
+        with open("mon_163.txt", "r") as mon:
+            data = mon.readlines()
+        if target+"\n" in data:
+            data.remove(target+"\n")
+            print(colored("Successfully remove given domain", "green"))
+            with open("mon_163.txt", "w") as mon:
+                for domain in data:
+                    mon.write(domain)
+            sys.exit(0)
+        else:
+            print(colored("Given domain not found!!!!", "red"))
+            sys.exit(1)
+    elif email == 'qq':
+        with open("mon_qq.txt", "r") as mon:
+            data = mon.readlines()
+        if target+"\n" in data:
+            data.remove(target+"\n")
+            print(colored("Successfully remove given domain", "green"))
+            with open("mon_qq.txt", "w") as mon:
+                for domain in data:
+                    mon.write(domain)
+            sys.exit(0)
+        else:
+            print(colored("Given domain not found!!!!", "red"))
+            sys.exit(1)
+
+
 if __name__ == "__main__":
     redis = args().redis
     url = args().url
@@ -253,6 +327,9 @@ if __name__ == "__main__":
     monitor_domain = args().monitor_domain
     execute = args().execute
     path = os.getcwd()
+    flush = args().flush
+    pop = args().pop
+    listing = args().listing
 
     banner()
 
@@ -267,6 +344,24 @@ if __name__ == "__main__":
     else:
         pass
 
+    if listing:
+        list_all()
+    else:
+        pass
+
+    if flush != '':
+        flush_all(flush)
+    else:
+        pass
+
+    if pop != '' and email in ['163', 'qq']:
+        pop_domain(pop, email)
+    elif pop == '':
+        pass
+    else:
+        print(colored("Warnning!!:Unsupported method!!!!", "red"))
+        sys.exit(1)
+
     if (email != '' and monitor_domain == '') or (email == '' and monitor_domain != ''):
         print(colored("Warnning!:Option -e should be used with option -d", "red"))
         sys.exit(1)
@@ -279,7 +374,6 @@ if __name__ == "__main__":
                 with open("mon_163.txt", "a") as mon:
                     mon.write(monitor_domain+"\n")
                 print(colored("Successfully added!!!!", "green"))
-                sys.exit(0)
             except:
                 print(colored("Warnning!:Fail to add domain!", "red"))
                 sys.exit(1)
@@ -288,10 +382,12 @@ if __name__ == "__main__":
                 with open("mon_qq.txt", "a") as mon:
                     mon.write(monitor_domain+"\n")
                 print(colored("Successfully added!!!!", "green"))
-                sys.exit(0)
             except:
                 print(colored("Warnning!:Fail to add domain!", "red"))
                 sys.exit(1)
+        else:
+            print(colored("Warnning!:Unsupported method!!!", "red"))
+    sys.exit(0)
 
     if execute:
         size_163 = os.path.getsize("mon_163.txt")
@@ -371,6 +467,3 @@ if __name__ == "__main__":
                     sys.exit(1)
     except Exception as e:
         print(e)
-
-
-
