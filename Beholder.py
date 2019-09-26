@@ -13,6 +13,7 @@ import sys
 import re
 import threading
 import os
+import math
 
 
 Author = "Aiden Qi(@ph4ntom)"
@@ -117,10 +118,11 @@ def del_dup(data):
 def saving(data, conn):
     try:
         print(colored("[*]Checking if data has existed.....", "green"))
-        if conn.get(url):
-            print(colored("[*]Data has existed,clearing.....", "red"))
-            conn.delete(url)
-        else:
+        try:
+            if conn.get(url):
+                print(colored("[*]Data has existed,clearing.....", "red"))
+                conn.delete(url)
+        except:
             print(colored("[*]Data doesn't exist,saving.....", "green"))
         if confirm is False:
             print(colored("[*]All data have shown as below.....", "green"))
@@ -282,41 +284,37 @@ def print_status(status, source):
 
 
 def check_subdomain_bycrt(url):
-    print_status('start', 'crt.sh')
+    print_status('start', 'Crt.sh')
     search_string = "%25."+str(url)
     result = []
     try:
-        response = requests.get("http://crt.sh/?Identity={}&output=json".format(search_string))
+        response = requests.get("http://crt.sh/?Identity={}&output=json".format(search_string), timeout=5)
         if response.status_code == 200:
             for domain in response.json():
                 result.append(domain['name_value'])
-            return result
         else:
-            print_status('error', 'crt.sh')
-            return result
-    except Exception as e:
-        print(e)
-        sys.exit(1)
+            pass
+    except:
+        print_status('error', 'Crt.sh')
+    return result
 
 
 def check_subdomain_byip138(url):
-    print_status('start', 'ip138')
+    print_status('start', 'IP138')
     pattern = r'_blank">([A-Za-z0-9.]*)</a></p>'
     search_result = []
     try:
-        response = requests.get("https://site.ip138.com/{}/domain.htm".format(url))
+        response = requests.get("https://site.ip138.com/{}/domain.htm".format(url), timeout=10)
         if response.status_code == 200:
             search_result = re.findall(pattern, response.text)
-            return search_result
         else:
-            print_status('error', 'ip138')
-            return search_result
-    except Exception as e:
-        print(e)
-        sys.exit(1)
+            pass
+    except TimeoutError:
+        print_status('error', 'IP138')
+    return search_result
 
 
-class dnsdumpster:
+class Dnsdumpster:
     def __init__(self, domain):
         self.domain = domain
         self.url = "https://dnsdumpster.com/"
@@ -378,11 +376,72 @@ class dnsdumpster:
             param = {'csrfmiddlewaretoken': token, 'targetip': self.domain}
             result = self.send_req("POST", param)
             subdomains = self.analyze(result)
-            return subdomains
+        except:
+            print_status('error', 'Dnsdumpster')
+        return subdomains
+
+
+class Dnsscan:
+    def __init__(self, domain):
+        self.domain = domain
+        self.url = "https://www.dnsscan.cn/dns.html"
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.8',
+              'Accept-Encoding': 'gzip',
+        }
+        self.sender = requests.Session()
+
+    def send_req(self, method, param=None):
+        param = param or {}
+        headers = dict(self.headers)
+        headers['Referer'] = "https://www.dnsscan.cn/dns.html"
+        headers['Origin'] = "https://www.dnsscan.cn"
+        try:
+            if method == "GET":
+                response = self.sender.get(self.url, headers=headers, timeout=5)
+            elif method == "POST":
+                response = self.sender.post(self.url, headers=headers, data=param, timeout=5)
         except Exception as e:
             print(e)
-            print_status('error', 'Dnsdumpster')
-            return subdomains
+            response = None
+        return response.text
+
+    def find_amount(self, data):
+        try:
+            finder = re.compile('查询结果为:(.*)条', re.S)
+            amount = finder.findall(data)[0]
+            return math.floor(int(amount)/20)
+        except Exception as e:
+            print(e)
+
+    def analyze(self, data):
+        try:      
+            temp = []
+            searcher = re.compile(r'<a href="([a-zA-Z0-9./:]*)" rel="nofollow"', re.S)
+            temp = searcher.findall(data)
+        except Exception as e:
+            print(e)
+        return list(temp)
+
+    def worker(self):
+        try:
+            subdomains = []
+            print_status('start', 'Dnsscan')
+            param = {"ecmsfrom": "102.111.111.111", "show": r"%E5%9B%BD%E5%86%85%E6%9C%AA%E8%83%BD%E8%AF%86%E5%88%AB%E7%9A%84%E5%9C%B0%E5%8C%BA", "classid": "0", "keywords": self.domain}
+            response = self.send_req("POST", param)
+            amount = self.find_amount(response)
+            subdomain_1 = self.analyze(response)
+            subdomains += subdomain_1
+            for i in range(amount):
+                self.url = "https://www.dnsscan.cn/dns.html?keywords={}&page={}".format(self.domain, i+2)
+                response = self.send_req("POST", param)
+                subdomain = self.analyze(response)
+                subdomains += subdomain
+        except:
+            print_status('error', 'Dnsscan')
+        return subdomains
 
 
 if __name__ == "__main__":
@@ -499,10 +558,12 @@ if __name__ == "__main__":
                 sys.exit(1)
             try:
                 TLD = check_given_url(url)
-                dnsdump = dnsdumpster(TLD)
+                dnsdump = Dnsdumpster(TLD)
+                dnsscan = Dnsscan(TLD)
                 subdomain = check_subdomain_bycrt(TLD)
                 subdomain += check_subdomain_byip138(TLD)
                 subdomain += dnsdump.worker()
+                subdomain += dnsscan.worker()
                 subdomain = del_dup(subdomain)
                 if confirm:
                     alive = prepare_test(subdomain)
@@ -521,10 +582,12 @@ if __name__ == "__main__":
             if search == "" and redis is False:
                 try:
                     TLD = check_given_url(url)
-                    dnsdump = dnsdumpster(TLD)
+                    dnsdump = Dnsdumpster(TLD)
+                    dnsscan = Dnsscan(TLD)
                     subdomain = check_subdomain_bycrt(TLD)
                     subdomain += check_subdomain_byip138(TLD)
                     subdomain += dnsdump.worker()
+                    subdomain += dnsscan.worker()
                     subdomain = del_dup(subdomain)
                     amount = len(subdomain)
                     print(colored("---------Here are the {} subdomains----------".format(amount), "green"))
