@@ -17,7 +17,7 @@ import os
 
 Author = "Aiden Qi(@ph4ntom)"
 Version = '1.1'
-Email = "phantom11235@gmail.com"
+Email = "ph4ntom11235@gmail.com"
 
 
 def args():
@@ -116,26 +116,19 @@ def del_dup(data):
 
 def saving(data, conn):
     try:
-        try:
-            print(colored("[*]Checking if data has existed.....", "green"))
-            conn.delete(url)
+        print(colored("[*]Checking if data has existed.....", "green"))
+        if conn.get(url):
             print(colored("[*]Data has existed,clearing.....", "red"))
-            if confirm is False:
-                print(colored("[*]All data have shown as below.....", "green"))
-                for everyone in data:
-                    print(everyone)
-            for everyone in data:
-                conn.lpush(url, everyone)
-            print(colored("[*]Saving data successfully", "green"))
-        except:
+            conn.delete(url)
+        else:
             print(colored("[*]Data doesn't exist,saving.....", "green"))
-            if confirm is False:
-                print(colored("[*]All data have shown as below.....", "green"))
-                for everyone in data:
-                    print(everyone)
+        if confirm is False:
+            print(colored("[*]All data have shown as below.....", "green"))
             for everyone in data:
-                conn.lpush(url, everyone)
-            print(colored("[*]Saving data successfully", "green"))
+                print(everyone)
+        for everyone in data:
+            conn.lpush(url, everyone)
+        print(colored("[*]Saving data successfully", "green"))
     except Exception as e:
         print(e)
 
@@ -179,41 +172,6 @@ def test_alive():
                 return 0
         except Exception as e:
             pass
-
-
-def check_subdomain_bycrt(url):
-    print(colored("Searching the subdomain through crt....... ", "green"))
-    search_string = "%25."+str(url)
-    result = []
-    try:
-        response = requests.get("http://crt.sh/?Identity={}&output=json".format(search_string))
-        if response.status_code == 200:
-            for domain in response.json():
-                result.append(domain['name_value'])
-            return result
-        else:
-            print(colored("----------crt.sh seems down,Skipping....----------", "red"))
-            return result
-    except Exception as e:
-        print(e)
-        sys.exit(1)
-
-
-def check_subdomain_byip138(url):
-    print(colored("Searching the subdomain through ip138....... ", "green"))
-    pattern = r'_blank">([A-Za-z0-9.]*)</a></p>'
-    search_result = []
-    try:
-        response = requests.get("https://site.ip138.com/{}/domain.htm".format(url))
-        if response.status_code == 200:
-            search_result = re.findall(pattern, response.text)
-            return search_result
-        else:
-            print(colored("----------ip138 seems down,Skipping....----------", "red"))
-            return search_result
-    except Exception as e:
-        print(e)
-        sys.exit(1)
 
 
 def search_sub(url):
@@ -314,6 +272,119 @@ def pop_domain(target, email):
             sys.exit(1)
 
 
+def print_status(status, source):
+    if status == 'start':
+        print(colored("Searching the subdomain through {}....... ".format(source), "green"))
+    elif status == 'error':
+        print(colored("----------{} seems down,Skipping....----------".format(source), "red"))
+    else:
+        pass
+
+
+def check_subdomain_bycrt(url):
+    print_status('start', 'crt.sh')
+    search_string = "%25."+str(url)
+    result = []
+    try:
+        response = requests.get("http://crt.sh/?Identity={}&output=json".format(search_string))
+        if response.status_code == 200:
+            for domain in response.json():
+                result.append(domain['name_value'])
+            return result
+        else:
+            print_status('error', 'crt.sh')
+            return result
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+
+
+def check_subdomain_byip138(url):
+    print_status('start', 'ip138')
+    pattern = r'_blank">([A-Za-z0-9.]*)</a></p>'
+    search_result = []
+    try:
+        response = requests.get("https://site.ip138.com/{}/domain.htm".format(url))
+        if response.status_code == 200:
+            search_result = re.findall(pattern, response.text)
+            return search_result
+        else:
+            print_status('error', 'ip138')
+            return search_result
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+
+
+class dnsdumpster:
+    def __init__(self, domain):
+        self.domain = domain
+        self.url = "https://dnsdumpster.com/"
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.8',
+              'Accept-Encoding': 'gzip',
+        }
+        self.sender = requests.Session()
+
+    def send_req(self, method, param=None):
+        param = param or {}
+        headers = dict(self.headers)
+        headers['Referer'] = "https://dnsdumpster.com/"
+        try:
+            if method == 'GET':
+                response = self.sender.get(self.url, headers=headers, timeout=5)
+            else:
+                response = self.sender.post(self.url, data=param, headers=headers, timeout=5)
+        except Exception as e:
+            print(e)
+            response = None
+        return response.text
+
+    def getcsrf(self, response):
+        csrf = re.compile("<input type='hidden' name='csrfmiddlewaretoken' value='(.*?)' />", re.S)
+        token = csrf.findall(response)[0]
+        return token.strip()
+
+    def analyze(self, data):
+        table_searcher = re.compile('<a name="hostanchor"><\/a>Host Records.*?<table.*?>(.*?)</table>', re.S)
+        link_searcher = re.compile('<td class="col-md-4">(.*?)<br>', re.S)
+        subdomains = []
+        try:
+            target_table = table_searcher.findall(data)[0]
+        except IndexError:
+            target_table = ''
+        try:
+            target_subdomains = link_searcher.findall(target_table)
+        except Exception as e:
+            print(e)
+            target_subdomains = []
+        temp = list(set(target_subdomains))
+        for subdomain in temp:
+            subdomain = subdomain.strip("\n").strip()
+            if subdomain.endswith(self.domain) and subdomain != self.domain:
+                subdomains.append(subdomain)
+            else:
+                continue
+        return subdomains
+
+    def worker(self):
+        try:
+            subdomains = []
+            print_status('start', 'Dnsdumpster')
+            init = self.send_req("GET", self.url)
+            token = self.getcsrf(init)
+            param = {'csrfmiddlewaretoken': token, 'targetip': self.domain}
+            result = self.send_req("POST", param)
+            subdomains = self.analyze(result)
+            return subdomains
+        except Exception as e:
+            print(e)
+            print_status('error', 'Dnsdumpster')
+            return subdomains
+
+
 if __name__ == "__main__":
     redis = args().redis
     url = args().url
@@ -368,12 +439,13 @@ if __name__ == "__main__":
     elif(email != '' and monitor_domain != '') and (redis or url or confirm or search != ""):
         print(colored("Warning!:Option -e/-d/-r can only be used without additional options"))
         sys.exit(1)
-    else:
+    elif email != '' and monitor_domain != '':
         if email == "163":
             try:
                 with open("mon_163.txt", "a") as mon:
                     mon.write(monitor_domain+"\n")
                 print(colored("Successfully added!!!!", "green"))
+                sys.exit(0)
             except:
                 print(colored("Warnning!:Fail to add domain!", "red"))
                 sys.exit(1)
@@ -382,12 +454,12 @@ if __name__ == "__main__":
                 with open("mon_qq.txt", "a") as mon:
                     mon.write(monitor_domain+"\n")
                 print(colored("Successfully added!!!!", "green"))
+                sys.exit(0)
             except:
                 print(colored("Warnning!:Fail to add domain!", "red"))
                 sys.exit(1)
         else:
             print(colored("Warnning!:Unsupported method!!!", "red"))
-    sys.exit(0)
 
     if execute:
         size_163 = os.path.getsize("mon_163.txt")
@@ -427,8 +499,10 @@ if __name__ == "__main__":
                 sys.exit(1)
             try:
                 TLD = check_given_url(url)
+                dnsdump = dnsdumpster(TLD)
                 subdomain = check_subdomain_bycrt(TLD)
                 subdomain += check_subdomain_byip138(TLD)
+                subdomain += dnsdump.worker()
                 subdomain = del_dup(subdomain)
                 if confirm:
                     alive = prepare_test(subdomain)
@@ -447,8 +521,10 @@ if __name__ == "__main__":
             if search == "" and redis is False:
                 try:
                     TLD = check_given_url(url)
+                    dnsdump = dnsdumpster(TLD)
                     subdomain = check_subdomain_bycrt(TLD)
                     subdomain += check_subdomain_byip138(TLD)
+                    subdomain += dnsdump.worker()
                     subdomain = del_dup(subdomain)
                     amount = len(subdomain)
                     print(colored("---------Here are the {} subdomains----------".format(amount), "green"))
