@@ -9,6 +9,8 @@ Redis
 Python3
 
 # 使用截图
+(以下是最初的截图，当前查询来源已经增加,懒得再截图了hhh)
+
 对7k7k网站进行子域名收集，并检活后存放结果至redis中
 
 ![1](https://github.com/phantom11235/Behold3r/blob/master/example/1.png)
