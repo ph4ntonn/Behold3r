@@ -341,7 +341,7 @@ class Dnsdumpster:
         return response.text
 
     def getcsrf(self, response):
-        csrf = re.compile("<input type='hidden' name='csrfmiddlewaretoken' value='(.*?)' />", re.S)
+        csrf = re.compile('<input type="hidden" name="csrfmiddlewaretoken" value="(.*?)">', re.S)
         token = csrf.findall(response)[0]
         return token.strip()
 
