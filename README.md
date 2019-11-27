@@ -64,7 +64,7 @@ Email.py 为邮件发送代码
 
 -d --domain:设置需要监控的域名，形如:```-d http://www.4399.com```  注意，此选项必须与-e选项联用
 
-如果-e与-d选项联用，形如：```python Beholder.py -d http://www.4399.com  -e 163```(即监控http://www.4399.com ,监控邮件发送至163邮箱，具体邮箱地址及授权码配置请至config.py文件中配置，授权码教程(以qq为例)：https://service.mail.qq.com/cgi-bin/help?subtype=1&id=28&no=1001256)
+如果-e与-d选项联用，形如：```python Beholder.py -d http://www.4399.com  -e 163```(即监控```http://www.4399.com```,监控邮件发送至163邮箱，具体邮箱地址及授权码配置请至config.py文件中配置，授权码教程(以qq为例)：https://service.mail.qq.com/cgi-bin/help?subtype=1&id=28&no=1001256)
 
 # 注意事项
 若使用了域名监控功能，请手动使用crontab -e 命令将其变为定时任务(不知道这是啥的请自行百度。。。)：
