@@ -192,16 +192,7 @@ def search_sub(url, output):
         for i in results:
             print(i.decode('utf-8'))
         print(colored("----------That's all!!!!!!----------", "green"))
-        if output:
-            filename = get_tld(url,as_object=True)
-            filename = filename.domain
-            try:
-                with open("{}.txt".format(filename), "a") as subdomain:
-                   for i in results:
-                        subdomain.write(i.decode('utf-8')+"\n")
-                print(colored("Export sudomain file successfully, check the {}.txt!".format(filename),"green"))
-            except Exception as e:
-                print(colored("Cannot export subdomain as .txt file","red"))
+        export_file(True, results, url, output)
         return list(results)
     except Exception as e:
         print(e)
@@ -231,6 +222,23 @@ def email_prepare_qq(data_ready):
 def check_diff(old_data, new_data):
     changed_data = [i for i in new_data if i not in old_data]
     return changed_data
+
+
+def export_file(flag, subdomains, url, output):
+   if output:
+            filename = get_tld(url,as_object=True)
+            filename = filename.domain
+            try:
+                with open("{}.txt".format(filename), "a") as subdomain:
+                   for i in subdomains:
+                       if flag:
+                            subdomain.write(i.decode('utf-8')+"\n")
+                       else:
+                            subdomain.write(i+"\n")
+                print(colored("[*]Export sudomain file successfully, check the {}.txt!".format(filename),"green"))
+            except Exception as e:
+                print(e)
+                print(colored("[*]Cannot export subdomain as .txt file","red")) 
 
 
 def flush_all(target):
@@ -598,8 +606,10 @@ if __name__ == "__main__":
                     print(colored("--------There are {} domains alive now---------".format(alive_amount), "red"))
                     for domain in alive:
                         print(domain)
+                    export_file(False, alive, url, output)
                     saving(alive, conn, url)
                 else:
+                    export_file(False, subdomain, url, output)
                     saving(subdomain, conn, url)
             except Exception as e:
                 print(e)
@@ -628,6 +638,7 @@ if __name__ == "__main__":
                         print(colored("--------There are {} domains alive now---------".format(alive_amount), "red"))
                         for domain in alive:
                             print(domain)
+                    export_file(False, domain, url, output)
                 except Exception as e:
                     print(e)
                     sys.exit(1)

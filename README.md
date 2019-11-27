@@ -47,7 +47,7 @@ Email.py 为邮件发送代码
 
 -s --search:设置要查找的域名但不执行收集的操作，仅仅只是从redis数据库中查找保存的对应域名的子域名的历史数据,形如:```python Beholder.py -s http://www.example.com```
 
--o --output:将查询结果导出为txt文件, 需要与-s选项联用,不可单独使用(导出文件名为域名.txt)
+-o --output:将查询结果导出为txt文件, 需要与-s、-u等选项联用,不可单独使用(导出文件名为域名.txt)
 
 -c --confirm:设置是否要对查找出来的子域名进行查活操作，形如:```python Beholder.py -u http://www.example.com -c```
 
