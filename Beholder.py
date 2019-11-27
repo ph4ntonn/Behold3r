@@ -1,6 +1,6 @@
 # Just4fun,don't be so serious XD
 # coding: utf-8
-from tld import get_fld
+from tld import get_fld, get_tld
 from redis import Redis
 from termcolor import colored
 from config import *
@@ -76,6 +76,12 @@ def args():
                         default=False,
                         action="store_true",
                         required=False)
+    parser.add_argument('-o','--output',
+                        dest='output',
+                        help='export subdomains\' data file',
+                        default=False,
+                        action="store_true",
+                        required=False)
     parser.add_argument('-x',
                         dest='execute',
                         help='Don\'t use this option!!!!',
@@ -115,11 +121,11 @@ def del_dup(data):
     return data
 
 
-def saving(data, conn):
+def saving(data, conn, url):
     try:
         print(colored("[*]Checking if data has existed.....", "green"))
         try:
-            if conn.get(url):
+            if conn.exists(url):
                 print(colored("[*]Data has existed,clearing.....", "red"))
                 conn.delete(url)
         except:
@@ -176,7 +182,7 @@ def test_alive():
             pass
 
 
-def search_sub(url):
+def search_sub(url, output):
     conn = conn_redis()
     try:
         length = conn.llen(url)
@@ -186,8 +192,19 @@ def search_sub(url):
         for i in results:
             print(i.decode('utf-8'))
         print(colored("----------That's all!!!!!!----------", "green"))
+        if output:
+            filename = get_tld(url,as_object=True)
+            filename = filename.domain
+            try:
+                with open("{}.txt".format(filename), "a") as subdomain:
+                   for i in results:
+                        subdomain.write(i.decode('utf-8')+"\n")
+                print(colored("Export sudomain file successfully, check the {}.txt!".format(filename),"green"))
+            except Exception as e:
+                print(colored("Cannot export subdomain as .txt file","red"))
         return list(results)
-    except:
+    except Exception as e:
+        print(e)
         print(colored("Cannot find any data!", "red"))
 
 
@@ -232,16 +249,23 @@ def flush_all(target):
 
 
 def list_all():
-    with open("mon_163.txt", "r") as mon:
-        data = mon.readlines()
-    print(colored("----------Here are domains being monitored under *@163.com---------", "green"))
-    for domain in data:
-        print(domain.strip("\n"))
-    with open("mon_qq.txt", "r") as mon:
-        data = mon.readlines()
-    print(colored("----------Here are domains being monitored under *@qq.com---------", "green"))
-    for domain in data:
-        print(domain.strip("\n"))
+    try:
+        with open("mon_163.txt", "r") as mon:
+            data = mon.readlines()
+        print(colored("----------Here are domains being monitored under *@163.com---------", "green"))
+        for domain in data:
+            print(domain.strip("\n"))
+    except FileNotFoundError:
+        print(colored("-------mon_163.txt cannot be found,please make sure if there are any domains under monitoring-------", "red"))
+    try:
+        with open("mon_qq.txt", "r") as mon:
+            data = mon.readlines()
+        print(colored("----------Here are domains being monitored under *@qq.com---------", "green"))
+        for domain in data:
+            print(domain.strip("\n"))
+    except FileNotFoundError:
+        print(colored("-------mon_qq.txt cannot be found,please make sure if there are any domains under monitoring-------", "red"))
+ 
     sys.exit(0)
 
 
@@ -276,7 +300,7 @@ def pop_domain(target, email):
 
 def print_status(status, source):
     if status == 'start':
-        print(colored("Searching the subdomain through {}....... ".format(source), "green"))
+        print(colored("Searching the subdomains through {}....... ".format(source), "green"))
     elif status == 'error':
         print(colored("----------{} seems down,Skipping....----------".format(source), "red"))
     else:
@@ -336,7 +360,7 @@ class Dnsdumpster:
             else:
                 response = self.sender.post(self.url, data=param, headers=headers, timeout=5)
         except Exception as e:
-            print(e)
+            print(colored("Searching through Dnsdumpster timeout!", "red"))
             response = None
         return response.text
 
@@ -460,6 +484,7 @@ if __name__ == "__main__":
     flush = args().flush
     pop = args().pop
     listing = args().listing
+    output = args().output
 
     banner()
 
@@ -470,7 +495,7 @@ if __name__ == "__main__":
         pass
 
     if search:
-        search_sub(search)
+        search_sub(search, output)
     else:
         pass
 
@@ -560,6 +585,7 @@ if __name__ == "__main__":
                 TLD = check_given_url(url)
                 dnsdump = Dnsdumpster(TLD)
                 dnsscan = Dnsscan(TLD)
+                print(colored("Some operations may take a few minutes,please wait......", "green"))
                 subdomain = check_subdomain_bycrt(TLD)
                 subdomain += check_subdomain_byip138(TLD)
                 subdomain += dnsdump.worker()
@@ -572,9 +598,9 @@ if __name__ == "__main__":
                     print(colored("--------There are {} domains alive now---------".format(alive_amount), "red"))
                     for domain in alive:
                         print(domain)
-                    saving(alive, conn)
+                    saving(alive, conn, url)
                 else:
-                    saving(subdomain, conn)
+                    saving(subdomain, conn, url)
             except Exception as e:
                 print(e)
                 sys.exit(1)
@@ -584,6 +610,7 @@ if __name__ == "__main__":
                     TLD = check_given_url(url)
                     dnsdump = Dnsdumpster(TLD)
                     dnsscan = Dnsscan(TLD)
+                    print(colored("Some operations may take a few minutes,please wait......", "green"))
                     subdomain = check_subdomain_bycrt(TLD)
                     subdomain += check_subdomain_byip138(TLD)
                     subdomain += dnsdump.worker()
