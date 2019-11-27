@@ -505,7 +505,7 @@ if __name__ == "__main__":
                     mon.write(monitor_domain+"\n")
                 print(colored("Successfully added!!!!", "green"))
                 sys.exit(0)
-            except:
+            except IOError:
                 print(colored("Warnning!:Fail to add domain!", "red"))
                 sys.exit(1)
         elif email == "qq":
@@ -514,7 +514,7 @@ if __name__ == "__main__":
                     mon.write(monitor_domain+"\n")
                 print(colored("Successfully added!!!!", "green"))
                 sys.exit(0)
-            except:
+            except IOError:
                 print(colored("Warnning!:Fail to add domain!", "red"))
                 sys.exit(1)
         else:
