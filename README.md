@@ -43,13 +43,13 @@ receiver：收件人邮箱
 Email.py 为邮件发送代码
 
 # 参数设置
--u --url:设置要查找的域名，形如:'''python Beholder.py -u http://www.example.com'''
+-u --url:设置要查找的域名，形如:```python Beholder.py -u http://www.example.com```
 
--s --search:设置要查找的域名但不执行收集的操作，仅仅只是从redis数据库中查找保存的对应域名的子域名的历史数据,形如:'''python Beholder.py -s http://www.example.com'''
+-s --search:设置要查找的域名但不执行收集的操作，仅仅只是从redis数据库中查找保存的对应域名的子域名的历史数据,形如:```python Beholder.py -s http://www.example.com```
 
--c --confirm:设置是否要对查找出来的子域名进行查活操作，形如:'''python Beholder.py -u http://www.example.com -c'''
+-c --confirm:设置是否要对查找出来的子域名进行查活操作，形如:```python Beholder.py -u http://www.example.com -c```
 
--r --redis:设置是否需要将查找出来的子域名用redis进行保存，默认不保存。形如:'''python Beholder.py -u http://www.example.com -r'''
+-r --redis:设置是否需要将查找出来的子域名用redis进行保存，默认不保存。形如:```python Beholder.py -u http://www.example.com -r```
 
            (注意，当-r参数与-c参数连用时，只保存存活的子域名)
 -t --timeout:设置查活操作线程的超时时间，默认为5s
@@ -62,9 +62,9 @@ Email.py 为邮件发送代码
 
 -e --email:设置接受监控信息的邮箱（现仅支持qq以及163邮箱），具体参数：-e 163(使用163邮箱)  -e qq（使用qq邮箱）注意，此选项必须与-d选项联用
 
--d --domain:设置需要监控的域名，形如:'''-d http://www.4399.com'''  注意，此选项必须与-e选项联用
+-d --domain:设置需要监控的域名，形如:```-d http://www.4399.com```  注意，此选项必须与-e选项联用
 
-如果-e与-d选项联用，形如：'''python Beholder.py -d http://www.4399.com  -e 163'''(即监控http://www.4399.com ,监控邮件发送至163邮箱，具体邮箱地址及授权码配置请至config.py文件中配置，授权码教程(以qq为例)：https://service.mail.qq.com/cgi-bin/help?subtype=1&id=28&no=1001256)
+如果-e与-d选项联用，形如：```python Beholder.py -d http://www.4399.com  -e 163```(即监控http://www.4399.com ,监控邮件发送至163邮箱，具体邮箱地址及授权码配置请至config.py文件中配置，授权码教程(以qq为例)：https://service.mail.qq.com/cgi-bin/help?subtype=1&id=28&no=1001256)
 
 # 注意事项
 若使用了域名监控功能，请手动使用crontab -e 命令将其变为定时任务(不知道这是啥的请自行百度。。。)：
