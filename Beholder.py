@@ -14,6 +14,8 @@ import re
 import threading
 import os
 import math
+import asyncio
+import aiohttp
 
 
 Author = "Aiden Qi(@ph4ntom)"
@@ -151,35 +153,33 @@ def check_given_url(url):
         sys.exit(1)
 
 
+async def check_alive(domain):
+    global doamins_alive
+    conn = aiohttp.TCPConnector(verify_ssl=False)
+    async with aiohttp.ClientSession(connector=conn) as session:
+        try:
+            async with session.get(domain, timeout=10) as resp:
+                statuscode = resp.status
+                if statuscode in [200, 443, 302]:
+                    domains_alive.append(domain)
+        except:
+            pass
+
+
 def prepare_test(domains):
-    global ready, domains_alive
-    threads = []
+    global domains_alive
+    tasks = []
+    loop = asyncio.get_event_loop()
     print(colored("---------Testing----------", "green"))
     for domain in domains:
-        ready.put(domain)
-    for i in range(THREADS):
-        t = threading.Thread(target=test_alive)
-        threads.append(t)
-    for i in threads:
-        i.start()
-    for i in threads:
-        i.join()
+        if "http://" not in domain and "https://" not in domain:
+            domain = "http://" + domain
+        task = asyncio.ensure_future(check_alive(domain))
+        tasks.append(task)
+    loop.run_until_complete(asyncio.wait(tasks))
+
+    domains_alive = list(set(domains_alive))
     return domains_alive
-
-
-def test_alive():
-    global ready, domains_alive
-    while True:
-        try:
-            if ready.empty() is False:
-                domain = ready.get()
-                response = requests.get("http://{}".format(domain), timeout=timeout)
-                if response.status_code == 200 or response.status_code == 443 or response.status_code == 302:
-                    domains_alive.append(domain)
-            else:
-                return 0
-        except Exception as e:
-            pass
 
 
 def search_sub(url, output):
@@ -638,7 +638,8 @@ if __name__ == "__main__":
                         print(colored("--------There are {} domains alive now---------".format(alive_amount), "red"))
                         for domain in alive:
                             print(domain)
-                    export_file(False, domain, url, output)
+                        export_file(False, domain, url, output)
+                    export_file(False, subdomain, url, output)
                 except Exception as e:
                     print(e)
                     sys.exit(1)
