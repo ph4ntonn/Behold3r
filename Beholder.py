@@ -19,12 +19,14 @@ import aiohttp
 
 
 Author = "Aiden Qi(@ph4ntom)"
-Version = '1.1'
+Version = '1.2'
 Email = "ph4ntom11235@gmail.com"
 
 
 def args():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-u', '--url',
                        dest="url",
@@ -109,6 +111,9 @@ def banner():
     print(colored("            Email: {}", "red").format(Email))
 
 
+# Functions below are control functions
+
+
 def conn_redis():
     return Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DATABASE)
 
@@ -118,87 +123,40 @@ def test_conn(conn):
     conn.delete("Beholder")
 
 
-def del_dup(data):
-    data = set(data)
-    return data
-
-
-def saving(data, conn, url):
-    try:
-        print(colored("[*]Checking if data has existed.....", "green"))
-        try:
-            if conn.exists(url):
-                print(colored("[*]Data has existed,clearing.....", "red"))
-                conn.delete(url)
-        except:
-            print(colored("[*]Data doesn't exist,saving.....", "green"))
-        if confirm is False:
-            print(colored("[*]All data have shown as below.....", "green"))
-            for everyone in data:
-                print(everyone)
-        for everyone in data:
-            conn.lpush(url, everyone)
-        print(colored("[*]Saving data successfully", "green"))
-    except Exception as e:
-        print(e)
-
-
 def check_given_url(url):
     try:
         TLD = get_fld(url)
         return TLD
     except Exception as e:
-        print(e)
-        print(colored("The format of given url is WRONG!!! It must like *.example.com(.cn,.net,etc...)", "red"))
+        print(colored("The format of given url is WRONG!!! It must like (http,https)://example(.com,.cn,.net,etc...)", "red"))
         sys.exit(1)
 
 
-async def check_alive(domain):
-    global doamins_alive
-    conn = aiohttp.TCPConnector(verify_ssl=False)
-    async with aiohttp.ClientSession(connector=conn) as session:
-        try:
-            async with session.get(domain, timeout=10) as resp:
-                statuscode = resp.status
-                if statuscode in [200, 443, 302]:
-                    domains_alive.append(domain)
-        except:
-            pass
+def check_diff(old_data, new_data):
+    changed_data = [i for i in new_data if i not in old_data]
+    return changed_data
 
 
-def prepare_test(domains):
-    global domains_alive
-    tasks = []
-    loop = asyncio.get_event_loop()
-    print(colored("---------Testing----------", "green"))
-    for domain in domains:
-        if "http://" not in domain and "https://" not in domain:
-            domain = "http://" + domain
-        task = asyncio.ensure_future(check_alive(domain))
-        tasks.append(task)
-    loop.run_until_complete(asyncio.wait(tasks))
-
-    domains_alive = list(set(domains_alive))
-    return domains_alive
+def print_status(status, source):
+    if status == 'start':
+        print(colored("Searching the subdomains through {}....... ".format(source), "green"))
+    elif status == 'error':
+        print(colored("----------{} seems down,Skipping....----------".format(source), "red"))
+    else:
+        pass
 
 
-def search_sub(url, output):
-    conn = conn_redis()
-    try:
-        length = conn.llen(url)
-        results = conn.lrange(url, 0, int(length))
-        print(colored("----------Found {} records!----------".format(length), "green"))
-        print(colored("----------The subdomains of given url are shown as below----------", "green"))
-        for i in results:
-            print(i.decode('utf-8'))
-        print(colored("----------That's all!!!!!!----------", "green"))
-        export_file(True, results, url, output)
-        return list(results)
-    except Exception as e:
-        print(e)
-        print(colored("Cannot find any data!", "red"))
+def del_dup(data):
+    data = set(data)
+    return data
 
 
+# Control functions end
+
+# Functions below are operating functions
+
+
+# Email functions
 def email_prepare_163(data_ready):
     changed_data = {}
     for domain in data_ready:
@@ -219,28 +177,94 @@ def email_prepare_qq(data_ready):
     send_qq_email(changed_data)
 
 
-def check_diff(old_data, new_data):
-    changed_data = [i for i in new_data if i not in old_data]
-    return changed_data
+# Saving data to redis
+def saving(data, conn, url):
+    try:
+        print(colored("[*]Checking if data has existed.....", "green"))
+        try:
+            if conn.exists(url):
+                print(colored("[*]Data has existed,clearing.....", "red"))
+                conn.delete(url)
+        except:
+            print(colored("[*]Data doesn't exist,saving.....", "green"))
+        if confirm is False:
+            print(colored("[*]All data have shown as below.....", "green"))
+            for everyone in data:
+                print(everyone)
+        for everyone in data:
+            conn.lpush(url, everyone)
+        print(colored("[*]Saving data successfully", "green"))
+    except Exception as e:
+        print(e)
 
 
+# Check if subdomains alive
+def prepare_test(domains):
+    global domains_alive
+    tasks = []
+    loop = asyncio.get_event_loop()
+    print(colored("---------Testing----------", "green"))
+    for domain in domains:
+        if "http://" not in domain and "https://" not in domain:
+            domain = "http://" + domain
+        task = asyncio.ensure_future(check_alive(domain))
+        tasks.append(task)
+    loop.run_until_complete(asyncio.wait(tasks))
+
+    domains_alive = list(set(domains_alive))
+    return domains_alive
+
+
+async def check_alive(domain):
+    global doamins_alive
+    conn = aiohttp.TCPConnector(verify_ssl=False)
+    async with aiohttp.ClientSession(connector=conn) as session:
+        try:
+            async with session.get(domain, timeout=10) as resp:
+                statuscode = resp.status
+                if statuscode in [200, 443, 302]:
+                    domains_alive.append(domain)
+        except:
+            pass
+
+
+# Search given domain's subdomain in redis
+def search_sub(url, output):
+    conn = conn_redis()
+    try:
+        length = conn.llen(url)
+        results = conn.lrange(url, 0, int(length))
+        print(colored("----------Found {} records!----------".format(length),"green"))
+        print(colored("----------The subdomains of given url are shown as below----------", "green"))
+        for i in results:
+            print(i.decode('utf-8'))
+        print(colored("----------That's all!!!!!!----------", "green"))
+        export_file(True, results, url, output)
+        return list(results)
+    except Exception as e:
+        print(e)
+        print(colored("Cannot find any data!", "red"))
+
+
+# Export subdomains as .txt file
 def export_file(flag, subdomains, url, output):
-   if output:
-            filename = get_tld(url,as_object=True)
-            filename = filename.domain
-            try:
-                with open("{}.txt".format(filename), "a") as subdomain:
-                   for i in subdomains:
-                       if flag:
-                            subdomain.write(i.decode('utf-8')+"\n")
-                       else:
-                            subdomain.write(i+"\n")
-                print(colored("[*]Export sudomain file successfully, check the {}.txt!".format(filename),"green"))
-            except Exception as e:
-                print(e)
-                print(colored("[*]Cannot export subdomain as .txt file","red")) 
+    if output:
+        filename = get_tld(url, as_object=True)
+        filename = filename.domain
+        try:
+            with open("{}.txt".format(filename), "a") as subdomain:
+                for i in subdomains:
+                    if flag:
+                        subdomain.write(i.decode('utf-8')+"\n")
+                    else:
+                        subdomain.write(i+"\n")
+            print(colored("[*]Export sudomain file successfully, check the {}.txt!".format(filename), "green"))
+        except Exception as e:
+            print(e)
+            print(colored("[*]Cannot export subdomain as .txt file", "red")) 
 
 
+# Flush all monitored domains
 def flush_all(target):
     if target == '163':
         temp = open("mon_163.txt", "w")
@@ -256,6 +280,7 @@ def flush_all(target):
     sys.exit(0)
 
 
+# List all monitored domains
 def list_all():
     try:
         with open("mon_163.txt", "r") as mon:
@@ -273,10 +298,10 @@ def list_all():
             print(domain.strip("\n"))
     except FileNotFoundError:
         print(colored("-------mon_qq.txt cannot be found,please make sure if there are any domains under monitoring-------", "red"))
- 
     sys.exit(0)
 
 
+# Pop one specific monitored domain
 def pop_domain(target, email):
     if email == '163':
         with open("mon_163.txt", "r") as mon:
@@ -306,15 +331,7 @@ def pop_domain(target, email):
             sys.exit(1)
 
 
-def print_status(status, source):
-    if status == 'start':
-        print(colored("Searching the subdomains through {}....... ".format(source), "green"))
-    elif status == 'error':
-        print(colored("----------{} seems down,Skipping....----------".format(source), "red"))
-    else:
-        pass
-
-
+# Functions below are subdomains' discovering functions
 def check_subdomain_bycrt(url):
     print_status('start', 'Crt.sh')
     search_string = "%25."+str(url)
@@ -364,9 +381,14 @@ class Dnsdumpster:
         headers['Referer'] = "https://dnsdumpster.com/"
         try:
             if method == 'GET':
-                response = self.sender.get(self.url, headers=headers, timeout=5)
+                response = self.sender.get(self.url,
+                                           headers=headers,
+                                           timeout=5)
             else:
-                response = self.sender.post(self.url, data=param, headers=headers, timeout=5)
+                response = self.sender.post(self.url,
+                                            data=param,
+                                            headers=headers,
+                                            timeout=5)
         except Exception as e:
             print(colored("Searching through Dnsdumpster timeout!", "red"))
             response = None
@@ -419,9 +441,9 @@ class Dnsscan:
         self.url = "https://www.dnsscan.cn/dns.html"
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.8',
-              'Accept-Encoding': 'gzip',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.8',
+            'Accept-Encoding': 'gzip',
         }
         self.sender = requests.Session()
 
@@ -432,9 +454,14 @@ class Dnsscan:
         headers['Origin'] = "https://www.dnsscan.cn"
         try:
             if method == "GET":
-                response = self.sender.get(self.url, headers=headers, timeout=5)
+                response = self.sender.get(self.url,
+                                           headers=headers,
+                                           timeout=5)
             elif method == "POST":
-                response = self.sender.post(self.url, headers=headers, data=param, timeout=5)
+                response = self.sender.post(self.url,
+                                            headers=headers,
+                                            data=param,
+                                            timeout=5)
         except Exception as e:
             print(e)
             response = None
@@ -474,6 +501,11 @@ class Dnsscan:
         except:
             print_status('error', 'Dnsscan')
         return subdomains
+
+
+# Discovering functions end
+
+# Main function start
 
 
 if __name__ == "__main__":
