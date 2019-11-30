@@ -16,6 +16,7 @@ import os
 import math
 import asyncio
 import aiohttp
+import execjs
 
 
 Author = "Aiden Qi(@ph4ntom)"
@@ -383,12 +384,12 @@ class Dnsdumpster:
             if method == 'GET':
                 response = self.sender.get(self.url,
                                            headers=headers,
-                                           timeout=5)
+                                           timeout=10)
             else:
                 response = self.sender.post(self.url,
                                             data=param,
                                             headers=headers,
-                                            timeout=5)
+                                            timeout=10)
         except Exception as e:
             print(colored("Searching through Dnsdumpster timeout!", "red"))
             response = None
@@ -456,12 +457,12 @@ class Dnsscan:
             if method == "GET":
                 response = self.sender.get(self.url,
                                            headers=headers,
-                                           timeout=5)
+                                           timeout=10)
             elif method == "POST":
                 response = self.sender.post(self.url,
                                             headers=headers,
                                             data=param,
-                                            timeout=5)
+                                            timeout=10)
         except Exception as e:
             print(e)
             response = None
@@ -501,6 +502,104 @@ class Dnsscan:
         except:
             print_status('error', 'Dnsscan')
         return subdomains
+
+
+class Threatcrowd:
+    def __init__(self, domain):
+        self.domain = domain
+        self.infourl = "https://www.threatcrowd.org"
+        self.url = "https://www.threatcrowd.org/searchApi/v2/domain/report/?domain={}"
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.8',
+            'Accept-Encoding': 'gzip',
+        }
+        self.sender = requests.Session()
+
+    def get_first_cookie(self):
+        try:
+            response = self.sender.get(self.infourl,
+                                       headers=self.headers,
+                                       timeout=10)
+            return response
+        except Exception as e:
+            print(e)
+            return None
+
+    def get_second_cookie(self, params, key):
+        url = self.infourl + params["url_suffix"]
+        post_params = {}
+        post_params["jschl_answer"] = key
+        post_params["r"] = params['first_param']
+        post_params["jschl_vc"] = params['second_param']
+        post_params["pass"] = params['third_param']
+        try:
+            print(colored("[*]Bypassing cloudflare protection...Please wait...", "green"))
+            time.sleep(5)
+            response = self.sender.post(url,
+                                        headers=self.headers,
+                                        data=post_params,
+                                        timeout=10)
+            return response
+        except Exception as e:
+            print(e)
+            return None
+
+    def get_key(self, text):
+        try:
+            pattern = re.compile('setTimeout\(function\(\)\{(.*?)f.action \+= location.hash;', re.S)
+            code = pattern.findall(text)
+            code = re.sub('\s+(t = document.*?);\s+;', '', code[0], flags=re.S)
+            code = re.sub('a.value', 'value', code)
+            code = re.sub('t.length', '19', code)
+            code = 'function test(){' + code.strip() + ';return value;}'
+            result = execjs.compile(code)
+            key = result.call('test')
+            return key
+        except Exception as e:
+            print(e)
+
+    def get_params(self, text):
+        try:
+            final_dict = {}
+            pattern = re.compile('<form id="challenge-form" action="(.*)" method="POST"', re.S)
+            final_dict["url_suffix"] = pattern.findall(text)[0]
+            pattern = re.compile('<input type="hidden" name="r" value="(.*)"></input>', re.S)
+            final_dict["first_param"] = pattern.findall(text)[0]
+            pattern = re.compile('<input type="hidden" name="jschl_vc" value="(.*)"/>')
+            final_dict["second_param"] = pattern.findall(text)[0]
+            pattern = re.compile('<input type="hidden" name="pass" value="(.*)"/>') 
+            final_dict["third_param"] = pattern.findall(text)[0]
+            return final_dict
+        except Exception as e:
+            print(e)
+            return None
+
+    def send_req(self, domain):
+        try:
+            response = self.sender.get(self.url.format(domain),
+                                       headers=self.headers,
+                                       timeout=10)
+        except Exception as e:
+            response = None
+        return response.json()
+
+    def worker(self):
+        try:
+            subdomains = []
+            print_status("start", "Threatcrowd")
+            response = self.get_first_cookie()
+            key = self.get_key(response.text)
+            params = self.get_params(response.text)
+            response = self.get_second_cookie(params, key)
+            response = self.send_req(self.domain)
+            for domains in response['subdomains']:
+                subdomains.append(domains)
+            return subdomains
+        except Exception as e:
+            print(e)
+            print_status('error', "Threatcrowd")
 
 
 # Discovering functions end
@@ -625,11 +724,13 @@ if __name__ == "__main__":
                 TLD = check_given_url(url)
                 dnsdump = Dnsdumpster(TLD)
                 dnsscan = Dnsscan(TLD)
+                threatcrowd = Threatcrowd(TLD)
                 print(colored("Some operations may take a few minutes,please wait......", "green"))
                 subdomain = check_subdomain_bycrt(TLD)
                 subdomain += check_subdomain_byip138(TLD)
                 subdomain += dnsdump.worker()
                 subdomain += dnsscan.worker()
+                subdomain += threatcrowd.worker()
                 subdomain = del_dup(subdomain)
                 if confirm:
                     alive = prepare_test(subdomain)
@@ -652,11 +753,13 @@ if __name__ == "__main__":
                     TLD = check_given_url(url)
                     dnsdump = Dnsdumpster(TLD)
                     dnsscan = Dnsscan(TLD)
+                    threatcrowd = Threatcrowd(TLD)
                     print(colored("Some operations may take a few minutes,please wait......", "green"))
                     subdomain = check_subdomain_bycrt(TLD)
                     subdomain += check_subdomain_byip138(TLD)
                     subdomain += dnsdump.worker()
                     subdomain += dnsscan.worker()
+                    subdomain += threatcrowd.worker()
                     subdomain = del_dup(subdomain)
                     amount = len(subdomain)
                     print(colored("---------Here are the {} subdomains----------".format(amount), "green"))
