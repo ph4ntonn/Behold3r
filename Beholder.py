@@ -156,6 +156,21 @@ def del_dup(data):
 
 # Functions below are operating functions
 
+# Do something?
+def someoper(url):
+    TLD = check_given_url(url)
+    dnsdump = Dnsdumpster(TLD)
+    dnsscan = Dnsscan(TLD)
+    threatcrowd = Threatcrowd(TLD)
+    print(colored("Some operations may take a few minutes,please wait......", "green"))
+    subdomain = check_subdomain_bycrt(TLD)
+    subdomain += check_subdomain_byip138(TLD)
+    subdomain += dnsdump.worker()
+    subdomain += dnsscan.worker()
+    subdomain += threatcrowd.worker()
+    subdomain = del_dup(subdomain)
+    return subdomain
+
 
 # Email functions
 def email_prepare_163(data_ready):
@@ -721,17 +736,7 @@ if __name__ == "__main__":
                 print(colored("Redis server seems not running! PLZ check the Redis status!", "red"))
                 sys.exit(1)
             try:
-                TLD = check_given_url(url)
-                dnsdump = Dnsdumpster(TLD)
-                dnsscan = Dnsscan(TLD)
-                threatcrowd = Threatcrowd(TLD)
-                print(colored("Some operations may take a few minutes,please wait......", "green"))
-                subdomain = check_subdomain_bycrt(TLD)
-                subdomain += check_subdomain_byip138(TLD)
-                subdomain += dnsdump.worker()
-                subdomain += dnsscan.worker()
-                subdomain += threatcrowd.worker()
-                subdomain = del_dup(subdomain)
+                subdomain = someoper(url)
                 if confirm:
                     alive = prepare_test(subdomain)
                     alive_amount = len(alive)
@@ -750,17 +755,7 @@ if __name__ == "__main__":
         else:
             if search == "" and redis is False:
                 try:
-                    TLD = check_given_url(url)
-                    dnsdump = Dnsdumpster(TLD)
-                    dnsscan = Dnsscan(TLD)
-                    threatcrowd = Threatcrowd(TLD)
-                    print(colored("Some operations may take a few minutes,please wait......", "green"))
-                    subdomain = check_subdomain_bycrt(TLD)
-                    subdomain += check_subdomain_byip138(TLD)
-                    subdomain += dnsdump.worker()
-                    subdomain += dnsscan.worker()
-                    subdomain += threatcrowd.worker()
-                    subdomain = del_dup(subdomain)
+                    subdomain = someoper(url) 
                     amount = len(subdomain)
                     print(colored("---------Here are the {} subdomains----------".format(amount), "green"))
                     for i in subdomain:
